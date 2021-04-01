@@ -19,7 +19,10 @@ clear all;clc;
 %% Call app and wait
 app = SignalStudio;
 waitfor(app.execution,'Value') % wait for simulate button to be pressed
-
+% Note: execution is a hidden checkbox that is checked after the simulate
+% button is pressed. This was necessary because the value of a pushbutton
+% cannot be read, and we needed to read a value. 
+tic
 %% Generate Target Scene
 tscene = zeros(256,256); % creates a 256 x 256 grid
 tscene_size = size(tscene); % 1st val is x, 2nd val is y
@@ -53,6 +56,8 @@ noise_level = 1; % adjust the level of noise in the signal (0 = no noise)
 c = 3e8; % approx. speed of light (m/s)
 plotFlag = app.PlotSignalsCheckBox.Value;
 acfFlag = app.PlotACFCheckBox.Value;
+threshold = app.FilterThreshold.Value/100;
+window_width = round(app.WindowWidth.Value/2); % divide by 2 so it can be centered on radar
 
 %% Code to simulate signal 1
 % Generate signal 1
@@ -79,6 +84,12 @@ elseif(strcmp(app.Signal1.Value,'Costas Code'))
     f1_mult1 = getMult(app.StopFreqUnits1.Value); % multiplier from drop-down list
     f1_sig1 = f1_sig1*f1_mult1;
     [tsig,t,long_t] = costas_code(c_length1,f0_sig1,f1_sig1,plotFlag,acfFlag);
+elseif(strcmp(app.Signal1.Value,'Golay Code'))
+    golay_length1 = str2double(app.GolayLength1.Value);
+    golay_freq1 = app.GolayFrequency1.Value;
+    golay_mult1 = getMult(app.GolayUnits1.Value);
+    golay_freq1 = golay_freq1*golay_mult1;
+    [tsig,t,long_t] = golay2(golay_freq1,golay_length1,plotFlag,acfFlag);
 end
 
 % Modulate and execute
@@ -113,18 +124,21 @@ if(app.PlotMatchedFilteringCheckBox.Value == 1)
 end
 MF_plot = zeros(length(uk),N); % initialize to zero
 for i = 1:length(uk)
+    window_bounds = [uk(i)-window_width, uk(i)+window_width];
     for k = 1:length(uT)
-        td(i,k)=2*sqrt((uT(k)-uk(i))^2+yT(k)^2)/c; % find time delay from Pythagorean theorem
-        % The following line and if statement removes aliasing if two time
-        % delays are identical. It prevents errors in the code
-        alias=find(abs(tline-td(i,k))==min(abs(tline-td(i,k))));
-        if length(alias) > 1
-            tidx(i,k) = alias(1);
-        else
-            tidx(i,k) = alias;
+        if(uT(k) > window_bounds(1) && uT(k) < window_bounds(2))
+            td(i,k)=2*sqrt((uT(k)-uk(i))^2+yT(k)^2)/c; % find time delay from Pythagorean theorem
+            % The following line and if statement removes aliasing if two time
+            % delays are identical. It prevents errors in the code
+            alias=find(abs(tline-td(i,k))==min(abs(tline-td(i,k))));
+            if length(alias) > 1
+                tidx(i,k) = alias(1);
+            else
+                tidx(i,k) = alias;
+            end
+            rxsig(i,:)=rxsig(i,:) + [zeros(1,tidx(i,k)-1) ref(k).*tsig zeros(1,N-tidx(i,k)-(Ns-1))]; %construct received signal
+            rxsig_demod(i,:) = rxsig(i,:)./long_carrier_sig;
         end
-        rxsig(i,:)=rxsig(i,:) + [zeros(1,tidx(i,k)-1) ref(k).*tsig zeros(1,N-tidx(i,k)-(Ns-1))]; %construct received signal
-        rxsig_demod(i,:) = rxsig(i,:)./long_carrier_sig;
     end
     MF=xcorr(rxsig(i,:),tsig); % cross-correlate received signal with transmitted signal
     MF_plot(i,:)=abs(MF(N:2*N-1)); % store vlaues for plotting
@@ -153,13 +167,13 @@ for x = 1:tscene_size(1)
     end
 end
 if(app.FilterOutputCheckBox.Value == 1)
-    intensity1 = joel_filters(intensity1,0.5);
+    intensity1 = joel_filters(intensity1,threshold);
 end
 % Plot Reconstructed Image 1
 reconstructed_image = figure();
-title("Reconstructed Image via Backprojection");
+sgtitle("Reconstructed Image via Backprojection, Captures = " + captures);
 subplot(1,2,1);
-pcolor(intensity1);shading flat;grid off;
+pcolor(intensity1);shading flat;grid off;colormap(gray);
 xlabel("Cross-Range");
 ylabel("Range");
 
@@ -188,6 +202,12 @@ elseif(strcmp(app.Signal2.Value,'Costas Code'))
     f1_mult2 = getMult(app.StopFreqUnits2.Value); % multiplier from drop-down list
     f1_sig2 = f1_sig2*f1_mult2;
     [tsig,t,long_t] = costas_code(c_length2,f0_sig2,f1_sig2,plotFlag,acfFlag);
+elseif(strcmp(app.Signal1.Value,'Golay Code'))
+    golay_length2 = str2double(app.GolayLength2.Value);
+    golay_freq2 = app.GolayFrequency2.Value;
+    golay_mult2 = getMult(app.GolayUnits2.Value);
+    golay_freq2 = golay_freq2*golay_mult2;
+    [tsig,t,long_t] = golay2(golay_freq2,golay_length2,plotFlag,acfFlag);
 end
 
 % Modulate and execute
@@ -222,18 +242,21 @@ if(app.PlotMatchedFilteringCheckBox.Value == 1)
 end
 MF_plot = zeros(length(uk),N); % initialize to zero
 for i = 1:length(uk)
+    window_bounds = [uk(i)-window_width, uk(i)+window_width];
     for k = 1:length(uT)
-        td(i,k)=2*sqrt((uT(k)-uk(i))^2+yT(k)^2)/c; % find time delay from Pythagorean theorem
-        % The following line and if statement removes aliasing if two time
-        % delays are identical. It prevents errors in the code
-        alias=find(abs(tline-td(i,k))==min(abs(tline-td(i,k))));
-        if length(alias) > 1
-            tidx(i,k) = alias(1);
-        else
-            tidx(i,k) = alias;
+        if(uT(k) > window_bounds(1) && uT(k) < window_bounds(2))
+            td(i,k)=2*sqrt((uT(k)-uk(i))^2+yT(k)^2)/c; % find time delay from Pythagorean theorem
+            % The following line and if statement removes aliasing if two time
+            % delays are identical. It prevents errors in the code
+            alias=find(abs(tline-td(i,k))==min(abs(tline-td(i,k))));
+            if length(alias) > 1
+                tidx(i,k) = alias(1);
+            else
+                tidx(i,k) = alias;
+            end
+            rxsig(i,:)=rxsig(i,:) + [zeros(1,tidx(i,k)-1) ref(k).*tsig zeros(1,N-tidx(i,k)-(Ns-1))]; % construct received signal
+            rxsig_demod(i,:) = rxsig(i,:)./long_carrier_sig;
         end
-        rxsig(i,:)=rxsig(i,:) + [zeros(1,tidx(i,k)-1) ref(k).*tsig zeros(1,N-tidx(i,k)-(Ns-1))]; % construct received signal
-        rxsig_demod(i,:) = rxsig(i,:)./long_carrier_sig;
     end
     MF=xcorr(rxsig(i,:),tsig); % cross-correlate received signal with transmitted signal
     MF_plot(i,:)=abs(MF(N:2*N-1)); % store vlaues for plotting
@@ -262,11 +285,12 @@ for x = 1:tscene_size(1)
     end
 end
 if(app.FilterOutputCheckBox.Value == 1)
-    intensity2 = joel_filters(intensity2,0.5);
+    intensity2 = joel_filters(intensity2,threshold);
 end
 % Plot Reconstructed Image 1
 figure(reconstructed_image);
 subplot(1,2,2);
-pcolor(intensity2);shading flat;grid off;
+pcolor(intensity2);shading flat;grid off;colormap(gray);
 xlabel("Cross-Range");
 ylabel("Range");
+toc
