@@ -16,15 +16,15 @@ mig_image = mig_image(15:56,150:390); % crop image
 newsize = [16 32]; % this size is arbitrary, but fits well into the target scene
 newMig = imresize(mig_image,newsize); % resize image to newsize
 newMig = newMig./(max(max(newMig))); % normalize to 1 again
-for i = 1:newsize(1)
-    for ii = 1:newsize(2)
-        if newMig(i,ii) < 0.1
-            newMig(i,ii) = 0.03; % adds a background to the rectangular image to simulate a runway
-%         else
-%             newMig(i,ii) = newMig(i,ii) + ((1-newMig(i,ii))/4); % makes the mig more reflective
-        end
-    end
-end
+% for i = 1:newsize(1)
+%     for ii = 1:newsize(2)
+% %         if newMig(i,ii) < 0.1
+% %             newMig(i,ii) = 0.03; % adds a background to the rectangular image to simulate a runway
+% %         else
+%             newMig(i,ii) = newMig(i,ii) + ((newMig(i,ii))/4); % makes the mig more reflective
+% %         end
+%     end
+% end
 
 % these loops add the mig into the target scene
 for i = x+1:x+newsize(1)

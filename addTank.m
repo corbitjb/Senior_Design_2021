@@ -12,7 +12,7 @@ tank_image = zeros(s);
 for i = 1:18 % 18 pixels long
     for ii = 1:12 % 12 pixels wide
         if (i < 2 || ii < 2) || (i > 17 || ii > 9)
-            tank_image(i,ii) = 0.7; % make edges of tank 70 % reflective
+            tank_image(i,ii) = 0.7; % make edges of tank 70% reflective
             tank_image(i,ii) = tank_image(i,ii)-0.01*abs(randn(1)); % add imperfections to surface of tank
         else
             tank_image(i,ii) = 0.9; % make body of tank 90% reflective
